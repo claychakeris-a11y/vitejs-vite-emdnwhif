@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 
 const SUPABASE_URL = "https://oyggssogwjerhaybhaps.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95Z2dzc29nd2plcmhheWJoYXBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxOTY0ODIsImV4cCI6MjA5NTc3MjQ4Mn0.RI62XIes5Y-xYtdAg-Nq8vVNI4C2QG9KeYPpVBt1TDE";
-const STRIPE_BASIC = "https://buy.stripe.com/bJe5kDfwM5Og8CR82KcAo00";
+const STRIPE_BASIC = "https://buy.stripe.com/6oUaEXckAa4w8CRcj0cAo03";
 const STRIPE_PORTAL = "https://billing.stripe.com/p/login/bJe5kDfwM5Og8CR82KcAo00";
 
 // Supabase auth helpers
@@ -57,7 +57,8 @@ const BEACHES = [
 
 const WIND_DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
 function degToDir(deg) { return WIND_DIRS[Math.round(deg / 22.5) % 16]; }
-function mpsToMph(mps) { return Math.round(mps * 2.237); }
+function mpsToMph(mps) { return Math.round(mps * 0.621371); } // km/h to mph
+function knotsToMph(kts) { return Math.round(parseFloat(kts) * 1.15078); }
 function metersToFeet(m) { return (m * 3.281).toFixed(1); }
 
 function getSurfScore(waveH, period, windMph, isOffshore) {
@@ -337,7 +338,13 @@ function AuthScreen({ onAuth }) {
       if (mode === "signup") {
         const res = await signUp(email, password);
         if (res.error) { setError(res.error.message); }
-        else { setSuccess("Account created! Check your email to confirm, then sign in."); setMode("login"); }
+        else if (res.access_token) { onAuth(res); }
+        else {
+          // Email confirmation off — try signing in immediately
+          const loginRes = await signIn(email, password);
+          if (loginRes.access_token) { onAuth(loginRes); }
+          else { setSuccess("Account created! Please sign in."); setMode("login"); }
+        }
       } else if (mode === "login") {
         const res = await signIn(email, password);
         if (res.error) { setError(res.error.message); }
@@ -391,7 +398,7 @@ function AuthScreen({ onAuth }) {
             <div>
               <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, fontWeight: 700, color: "#1a1a1a", marginBottom: 4 }}>Full Access</div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 38, fontWeight: 700, color: "#0ea5e9" }}>$2.99</span>
+                <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 38, fontWeight: 700, color: "#0ea5e9" }}>$1.99</span>
                 <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 14, color: "#9b9590" }}>/month</span>
               </div>
             </div>
@@ -407,7 +414,7 @@ function AuthScreen({ onAuth }) {
           </div>
           <a href={STRIPE_BASIC} target="_blank" rel="noopener noreferrer"
             style={{ display: "block", background: "#0ea5e9", color: "#fff", borderRadius: 12, padding: "15px", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 16, textAlign: "center", boxShadow: "0 4px 16px #0ea5e944", textDecoration: "none" }}>
-            Subscribe for $2.99/month →
+            Subscribe for $1.99/month →
           </a>
         </div>
 
@@ -469,10 +476,10 @@ function AuthScreen({ onAuth }) {
               <button onClick={() => { setMode("login"); setError(""); setSuccess(""); }} style={{ background: "none", border: "none", fontFamily: "'Inter',sans-serif", fontSize: 14, color: "#0ea5e9", fontWeight: 600 }}>Already have an account? Sign in</button>
               <div style={{ marginTop: 8, background: "#f0f9ff", border: "1px solid #7dd3fc", borderRadius: 10, padding: "12px 14px", width: "100%" }}>
                 <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: "#0369a1", fontWeight: 600, marginBottom: 6 }}>📋 How to get access:</div>
-                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: "#0369a1", lineHeight: 1.6 }}>1. Subscribe for $2.99/month below<br/>2. Come back and create your account<br/>3. Sign in on any device anytime</div>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: "#0369a1", lineHeight: 1.6 }}>1. Subscribe for $1.99/month below<br/>2. Come back and create your account<br/>3. Sign in on any device anytime</div>
                 <a href={STRIPE_BASIC} target="_blank" rel="noopener noreferrer"
                   style={{ display: "block", background: "#0ea5e9", color: "#fff", borderRadius: 8, padding: "9px 14px", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, textAlign: "center", marginTop: 10, textDecoration: "none" }}>
-                  Subscribe for $2.99/month →
+                  Subscribe for $1.99/month →
                 </a>
               </div>
             </>}
@@ -484,7 +491,7 @@ function AuthScreen({ onAuth }) {
               <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: "#9b9590", marginBottom: 8 }}>Don't have an account yet?</div>
               <a href={STRIPE_BASIC} target="_blank" rel="noopener noreferrer"
                 style={{ display: "inline-block", background: "#0c1c2c", color: "#fff", borderRadius: 8, padding: "9px 20px", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, textDecoration: "none" }}>
-                Subscribe for $2.99/month →
+                Subscribe for $1.99/month →
               </a>
             </div>
           )}
@@ -570,7 +577,7 @@ export default function App() {
 
     // Fetch NOAA Buoy 41004 (Charleston offshore buoy)
     try {
-      const buoyRes = await fetch("https://www.ndbc.noaa.gov/data/realtime2/41004.txt");
+      const buoyRes = await fetch("https://corsproxy.io/?https://www.ndbc.noaa.gov/data/realtime2/41004.txt");
       const buoyText = await buoyRes.text();
       const lines = buoyText.trim().split("\n");
       // Line 0 is headers, line 1 is units, line 2 is most recent data
@@ -745,7 +752,7 @@ export default function App() {
                     {[
                       { label: "Wave Height", value: buoy.wvht !== "MM" ? `${(parseFloat(buoy.wvht) * 3.281).toFixed(1)} ft` : "N/A", sub: `${buoy.wvht}m raw`, icon: "🌊", color: "#0ea5e9" },
                       { label: "Dominant Period", value: buoy.dpd !== "MM" ? `${buoy.dpd}s` : "N/A", sub: parseFloat(buoy.dpd) >= 10 ? "Good swell 🟢" : parseFloat(buoy.dpd) >= 7 ? "Decent 🟡" : "Wind chop 🔴", icon: "⏱️", color: "#8b5cf6" },
-                      { label: "Wind Speed", value: buoy.wspd !== "MM" ? `${Math.round(parseFloat(buoy.wspd) * 1.944)} kts` : "N/A", sub: `${buoy.wspd} m/s`, icon: "💨", color: "#f59e0b" },
+                      { label: "Wind Speed", value: buoy.wspd !== "MM" ? `${Math.round(parseFloat(buoy.wspd) * 2.237)} mph` : "N/A", sub: `${buoy.wspd} m/s`, icon: "💨", color: "#f59e0b" },
                       { label: "Water Temp", value: buoy.wtmp !== "MM" ? `${Math.round(parseFloat(buoy.wtmp) * 9/5 + 32)}°F` : "N/A", sub: `${buoy.wtmp}°C`, icon: "🌡️", color: "#16a34a" },
                     ].map((s, i) => (
                       <div key={i} style={{ background: "#f8f6f1", borderRadius: 12, padding: "16px 18px" }}>
