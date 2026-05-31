@@ -1,5 +1,4 @@
 // @ts-nocheck
-// @ts-nocheck
 import { useState, useEffect } from "react";
 
 const SUPABASE_URL = "https://oyggssogwjerhaybhaps.supabase.co";
@@ -312,10 +311,19 @@ function BeachCard({ beach, data, tides }) {
 
 // ── AUTH SCREENS ─────────────────────────────────────────
 function AuthScreen({ onAuth }) {
-  const cameFromStripe = localStorage.getItem("surf_came_from_stripe") === "true";
-  const [mode, setMode]       = useState(cameFromStripe ? "signup" : "paywall"); // paywall | login | signup | reset
-  // Clear the flag once we've used it
-  useEffect(() => { if (cameFromStripe) localStorage.removeItem("surf_came_from_stripe"); }, []);
+  // Check BOTH localStorage flag AND ?paid=true URL param directly here
+  const urlPaid = new URLSearchParams(window.location.search).get("paid") === "true";
+  const localPaid = localStorage.getItem("surf_came_from_stripe") === "true";
+  const startMode = (urlPaid || localPaid) ? "signup" : "paywall";
+  const [mode, setMode] = useState(startMode);
+  useEffect(() => {
+    // Clean up URL and localStorage
+    if (urlPaid) {
+      window.history.replaceState({}, "", window.location.pathname);
+      localStorage.setItem("surf_came_from_stripe", "true");
+    }
+    if (localPaid) localStorage.removeItem("surf_came_from_stripe");
+  }, []);
   const [email, setEmail]     = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
