@@ -311,7 +311,10 @@ function BeachCard({ beach, data, tides }) {
 
 // ── AUTH SCREENS ─────────────────────────────────────────
 function AuthScreen({ onAuth }) {
-  const [mode, setMode]       = useState("paywall"); // paywall | login | signup | reset
+  const cameFromStripe = localStorage.getItem("surf_came_from_stripe") === "true";
+  const [mode, setMode]       = useState(cameFromStripe ? "signup" : "paywall"); // paywall | login | signup | reset
+  // Clear the flag once we've used it
+  useEffect(() => { if (cameFromStripe) localStorage.removeItem("surf_came_from_stripe"); }, []);
   const [email, setEmail]     = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -499,12 +502,14 @@ export default function App() {
   useEffect(() => {
     const saved = localStorage.getItem("surf_session");
     if (saved) {
-      try { setUser(JSON.parse(saved)); } catch {}
+      try { setUser(JSON.parse(saved)); return; } catch {}
     }
-    // Check for ?paid=true redirect from Stripe
+    // Check for ?paid=true redirect from Stripe — send straight to signup
     const params = new URLSearchParams(window.location.search);
     if (params.get("paid") === "true") {
       window.history.replaceState({}, "", window.location.pathname);
+      // Will be handled in AuthScreen defaulting to signup
+      localStorage.setItem("surf_came_from_stripe", "true");
     }
   }, []);
 
