@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 const SUPABASE_URL = "https://oyggssogwjerhaybhaps.supabase.co";
 const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im95Z2dzc29nd2plcmhheWJoYXBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxOTY0ODIsImV4cCI6MjA5NTc3MjQ4Mn0.RI62XIes5Y-xYtdAg-Nq8vVNI4C2QG9KeYPpVBt1TDE";
 const STRIPE_BASIC = "https://buy.stripe.com/bJe5kDfwM5Og8CR82KcAo00";
+const STRIPE_PORTAL = "https://billing.stripe.com/p/login/bJe5kDfwM5Og8CR82KcAo00";
 
 // Supabase auth helpers
 async function supabaseRequest(path, method, body) {
@@ -610,6 +611,7 @@ export default function App() {
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={loadData} style={{ background: "#1e3a5f", border: "1px solid #2d5a8e", borderRadius: 8, padding: "8px 12px", color: "#7dd3fc", fontSize: 13, fontWeight: 600 }}>{loading ? "..." : "↻"}</button>
+              <a href={STRIPE_PORTAL} target="_blank" rel="noopener noreferrer" style={{ background: "#1e3a5f", border: "1px solid #2d5a8e", borderRadius: 8, padding: "8px 12px", color: "#94a3b8", fontSize: 13, fontWeight: 600, textDecoration: "none" }}>Manage</a>
               <button onClick={handleSignOut} style={{ background: "#1e3a5f", border: "1px solid #2d5a8e", borderRadius: 8, padding: "8px 12px", color: "#94a3b8", fontSize: 13, fontWeight: 600 }}>Sign Out</button>
             </div>
           </div>
