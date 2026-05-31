@@ -1,607 +1,657 @@
 // @ts-nocheck
 // @ts-nocheck
-import { useState, useRef } from "react";
+import { useState, useEffect } from "react";
 
-const STRIPE = {
-  basic: "https://buy.stripe.com/bJe5kDfwM5Og8CR82KcAo00",
-  pro:   "https://buy.stripe.com/6oUfZh84k4Kcf1f3MucAo01",
-  elite: "https://buy.stripe.com/00w5kD98o2C4dXb6YGcAo02",
+const STRIPE_BASIC = "https://buy.stripe.com/bJe5kDfwM5Og8CR82KcAo00";
+// After deploying, go to Stripe → Payment Links → your link → After Payment
+// Set redirect URL to: https://YOUR-DOMAIN.com?paid=true
+
+const PLAN = {
+  name: "Basic",
+  price: "$2.99",
+  color: "#0ea5e9",
+  bg: "#f0f9ff",
+  features: [
+    "✅ Live conditions for all 3 beaches",
+    "✅ Wave height, period & direction",
+    "✅ Wind speed & offshore/onshore status",
+    "✅ Animated cam widget",
+    "✅ Full NOAA tide chart",
+    "✅ Surf & fishing ratings",
+    "✅ Beach guide & hot spots",
+    "✅ Direct Surfline cam links",
+    "✅ Unlimited daily checks",
+  ],
 };
 
-const TIERS = {
-  S: { color: "#b91c1c", bg: "#fef2f2", border: "#fca5a5", label: "S Tier", sub: "Must Flip — Instant Profit" },
-  A: { color: "#c2410c", bg: "#fff7ed", border: "#fdba74", label: "A Tier", sub: "Strong Flip — Great Margins" },
-  B: { color: "#a16207", bg: "#fefce8", border: "#fde047", label: "B Tier", sub: "Solid Flip — Worth Your Time" },
-  C: { color: "#15803d", bg: "#f0fdf4", border: "#86efac", label: "C Tier", sub: "Decent Flip — Moderate Return" },
-  D: { color: "#1d4ed8", bg: "#eff6ff", border: "#93c5fd", label: "D Tier", sub: "Weak Flip — Low Margin" },
-  F: { color: "#4b5563", bg: "#f9fafb", border: "#d1d5db", label: "F Tier", sub: "Skip It — Not Worth Flipping" },
-};
-
-const PLATFORMS = [
-  { name: "eBay",                emoji: "🛍️", url: "https://www.ebay.com",                 fee: 0.13 },
-  { name: "Poshmark",            emoji: "👗", url: "https://www.poshmark.com",             fee: 0.20 },
-  { name: "Depop",               emoji: "🎨", url: "https://www.depop.com",                fee: 0.10 },
-  { name: "Mercari",             emoji: "📦", url: "https://www.mercari.com",              fee: 0.10 },
-  { name: "StockX",              emoji: "👟", url: "https://www.stockx.com",               fee: 0.09 },
-  { name: "GOAT",                emoji: "✅", url: "https://www.goat.com",                 fee: 0.09 },
-  { name: "Facebook Marketplace",emoji: "📍", url: "https://www.facebook.com/marketplace", fee: 0.00 },
+const BEACHES = [
+  {
+    id: "iop", name: "Isle of Palms", short: "IOP", emoji: "🏄",
+    lat: 32.7874, lon: -79.7715, color: "#0ea5e9", bg: "#f0f9ff", border: "#7dd3fc",
+    description: "Known for consistent sandbars and the county park break. Best at low to mid incoming tide with NE swell.",
+    hotspot: "County Park beach access", fishing: "Pompano and whiting off the pier",
+    bestSwell: "NE to E at 8s+", bestWind: "W or NW offshore", bestTide: "Low to mid incoming",
+    surflineUrl: "https://www.surfline.com/surf-report/isle-of-palms/5842041f4e65fad6a7708b46",
+  },
+  {
+    id: "sullivan", name: "Sullivan's Island", short: "Sullivan's", emoji: "🌊",
+    lat: 32.7654, lon: -79.8364, color: "#8b5cf6", bg: "#f5f3ff", border: "#c4b5fd",
+    description: "Quieter and more consistent than IOP. Great for longboarding. Works well on smaller NE swells.",
+    hotspot: "Station 22.5 access — uncrowded", fishing: "Redfish and flounder surf fishing",
+    bestSwell: "NE at 9s+", bestWind: "W or SW offshore", bestTide: "Mid incoming to high",
+    surflineUrl: "https://www.surfline.com/surf-report/sullivans-island/5842041f4e65fad6a7708b7e",
+  },
+  {
+    id: "folly", name: "Folly Beach", short: "Folly", emoji: "🤙",
+    lat: 32.6554, lon: -79.9403, color: "#f59e0b", bg: "#fffbeb", border: "#fcd34d",
+    description: "The Edge of America. Most consistent break in the Charleston area. Pier works at all tides.",
+    hotspot: "Folly Pier area — works at all tides", fishing: "Best pier fishing in Charleston",
+    bestSwell: "Any E to NE at 7s+", bestWind: "W or NW offshore", bestTide: "Mid to high near pier",
+    surflineUrl: "https://www.surfline.com/surf-report/folly-beach/5842041f4e65fad6a7708882",
+  },
 ];
 
-const PLANS = {
-  basic: {
-    name: "Basic", price: "$2.99", period: "/month", color: "#15803d", bg: "#f0fdf4", stripe: STRIPE.basic,
-    features: ["✅ Instant tier ratings (S through F)","✅ Resale prices across 7 platforms","✅ Condition-based price adjustments","✅ Previously rated item history","❌ Photo upload","❌ Profit & fee estimates","❌ Direct platform listing links","❌ Expert reseller tips"],
-    ratingLimit: 25, hasPhoto: false, hasProfit: false, hasTips: false, hasLinks: false,
-  },
-  pro: {
-    name: "Pro", price: "$10", period: "/month", color: "#c2410c", bg: "#fff7ed", stripe: STRIPE.pro,
-    features: ["✅ Everything in Basic","✅ Photo upload for visual analysis","✅ Profit estimates after all fees","✅ Direct links to list on every platform","✅ Unlimited ratings","✅ Platform fee breakdowns","❌ Priority new features","❌ Advanced expert tips database"],
-    ratingLimit: 99999, hasPhoto: true, hasProfit: true, hasTips: false, hasLinks: true,
-  },
-  elite: {
-    name: "Elite", price: "$15", period: "/month", color: "#6d28d9", bg: "#f5f3ff", stripe: STRIPE.elite,
-    features: ["✅ Everything in Pro","✅ Full expert reseller tips database","✅ Seasonal trend analysis","✅ Best platform recommendations","✅ Advanced condition pricing","✅ Priority access to new features","✅ Unlimited ratings","✅ Photo AI analysis"],
-    ratingLimit: 99999, hasPhoto: true, hasProfit: true, hasTips: true, hasLinks: true,
-  },
-};
+const WIND_DIRS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+function degToDir(deg) { return WIND_DIRS[Math.round(deg / 22.5) % 16]; }
+function mpsToMph(mps) { return Math.round(mps * 2.237); }
+function metersToFeet(m) { return (m * 3.281).toFixed(1); }
 
-// Condition multipliers with context
-const CONDITIONS = {
-  deadstock: { mult: 1.0,  label: "💎 Deadstock / New",    note: "Full market value — never worn, tags on" },
-  likenew:   { mult: 0.88, label: "✨ Like New",            note: "Worn once or twice, no visible flaws" },
-  good:      { mult: 0.68, label: "👍 Good Used",           note: "Normal wear, minor flaws, clean" },
-  worn:      { mult: 0.45, label: "👎 Visible Wear",        note: "Fading, pilling, or light scuffs visible" },
-  damaged:   { mult: 0.22, label: "⚠️ Stains / Damage",    note: "Stains, rips, or significant damage" },
-};
+function getSurfScore(waveH, period, windMph, isOffshore) {
+  let s = 0;
+  const ft = waveH * 3.281;
+  if (ft < 0.5) s = 0; else if (ft < 1) s = 1; else if (ft < 2) s = 2;
+  else if (ft < 3) s = 3; else if (ft < 4) s = 4; else s = 5;
+  if (period >= 12) s += 2; else if (period >= 10) s += 1.5;
+  else if (period >= 8) s += 1; else if (period < 6) s -= 1;
+  if (isOffshore && windMph < 5) s += 1; else if (isOffshore) s += 0.5;
+  else if (windMph > 15) s -= 1;
+  return Math.max(0, Math.min(10, Math.round(s)));
+}
 
-// Detailed item database
-const ITEMS = [
-  // S TIER — Grails
-  { keys:["supreme box logo","bx logo hoodie"], tier:"S", brand:"Supreme", category:"Streetwear",
-    desc:"The Supreme Box Logo Hoodie is one of the most coveted streetwear items in existence. Demand always outstrips supply — buyers wait months for authentic pairs. Colorway and season dramatically affect price.",
-    platforms:{"eBay":"$450–$950","StockX":"$500–$1,000","GOAT":"$480–$980","Depop":"$420–$900","Poshmark":"$400–$880"},
-    buy:"$120–$220", profit:"$280–$650", bestPlatform:"StockX",
-    tips:["Authenticate before listing — fakes are extremely common","Season and colorway matter enormously: FW box logos fetch more than SS","List within 48 hours of acquiring — hype windows close fast"] },
+function getSurfLabel(score) {
+  if (score >= 8) return { label: "EPIC",  color: "#dc2626", emoji: "🔥", score };
+  if (score >= 6) return { label: "GOOD",  color: "#16a34a", emoji: "✅", score };
+  if (score >= 4) return { label: "FAIR",  color: "#d97706", emoji: "👍", score };
+  if (score >= 2) return { label: "POOR",  color: "#6b7280", emoji: "😐", score };
+  return                { label: "FLAT",  color: "#9ca3af", emoji: "😴", score };
+}
 
-  { keys:["travis scott","travis scott jordan","travis scott nike","cactus jack"], tier:"S", brand:"Nike/Travis Scott", category:"Sneakers",
-    desc:"Travis Scott collaborations are among the most valuable resale items on the market. Reverse Swoosh designs command massive premiums. Authentication is essential — buyer scrutiny is intense.",
-    platforms:{"eBay":"$500–$1,500","StockX":"$550–$1,600","GOAT":"$540–$1,580","Depop":"$480–$1,400"},
-    buy:"$150–$350", profit:"$300–$1,000", bestPlatform:"StockX",
-    tips:["StockX authentication protects you and commands higher prices","Photograph every detail — lace tips, insoles, box label","Never clean soles with bleach — yellowing destroys value"] },
+function getFishLabel(waveH, windMph) {
+  const ft = waveH * 3.281;
+  if (ft > 4 || windMph > 20) return { label: "Rough", color: "#dc2626" };
+  if (ft > 2 || windMph > 15) return { label: "Okay",  color: "#d97706" };
+  return { label: "Great", color: "#16a34a" };
+}
 
-  { keys:["off-white","off white jordan","off white nike","off white the ten"], tier:"S", brand:"Off-White", category:"Sneakers",
-    desc:"Off-White x Nike 'The Ten' collection remains highly sought after years after release. Virgil Abloh's legacy has only increased demand. Condition and completeness of original packaging are critical.",
-    platforms:{"eBay":"$600–$2,000","StockX":"$650–$2,200","GOAT":"$630–$2,100","Depop":"$550–$1,800"},
-    buy:"$200–$500", profit:"$350–$1,200", bestPlatform:"StockX",
-    tips:["Original zip-ties and extra laces add significant value","Photograph the Helvetica text detailing carefully","Deadstock pairs in original box command 3x worn pairs"] },
+function getMockData(id) {
+  const base = {
+    iop:      { wave_height: 0.6, wave_period: 8,  wave_direction: 45,  windspeed: 4.5, winddirection: 270, temperature: 27 },
+    sullivan: { wave_height: 0.5, wave_period: 7,  wave_direction: 50,  windspeed: 5.0, winddirection: 260, temperature: 27 },
+    folly:    { wave_height: 0.7, wave_period: 9,  wave_direction: 40,  windspeed: 4.0, winddirection: 280, temperature: 27 },
+  };
+  return base[id] || base.iop;
+}
 
-  { keys:["jordan 1 chicago","jordan 1 bred","jordan 1 royal","jordan 1 og","jordan 1 shadow","jordan 1 mocha"], tier:"S", brand:"Nike", category:"Sneakers",
-    desc:"OG colorway Jordan 1s are the pinnacle of sneaker collecting. Chicago, Bred, Royal, and Shadow releases hold value exceptionally well. Authenticity and condition are everything to serious collectors.",
-    platforms:{"eBay":"$350–$800","StockX":"$380–$850","GOAT":"$370–$830","Depop":"$320–$750","Poshmark":"$300–$720"},
-    buy:"$120–$200", profit:"$180–$550", bestPlatform:"StockX",
-    tips:["OG colorways hold value better than GR releases","Box and all accessories must be present for top dollar","Creasing dramatically reduces value — stuff with shoe trees"] },
-
-  { keys:["louis vuitton","lv bag","gucci bag","prada bag","chanel bag","hermes","birkin"], tier:"S", brand:"Luxury", category:"Luxury",
-    desc:"Authentic luxury goods maintain exceptional resale value. Handbags especially appreciate over time. Authentication is absolutely critical — buyers will verify through third-party services and counterfeits are rampant.",
-    platforms:{"eBay":"$500–$5,000","Poshmark":"$480–$4,800","Depop":"$450–$4,500","Mercari":"$400–$4,000"},
-    buy:"$150–$1,500", profit:"$200–$2,500", bestPlatform:"Poshmark",
-    tips:["Get third-party authentication (Entrupy or Real Authentication)","Original dustbag, box, and receipt add 20-40% to value","Never clean leather yourself — professionals only"] },
-
-  // A TIER
-  { keys:["air jordan 1","jordan 1","aj1","jordan retro 1"], tier:"A", brand:"Nike", category:"Sneakers",
-    desc:"Air Jordan 1s have one of the most consistent resale markets in footwear. Non-OG colorways still command solid premiums. Condition and size affect prices significantly — larger sizes (11+) often fetch more.",
-    platforms:{"eBay":"$160–$380","StockX":"$170–$400","GOAT":"$165–$395","Depop":"$140–$350","Poshmark":"$130–$340","Mercari":"$125–$320"},
-    buy:"$80–$130", profit:"$60–$220", bestPlatform:"StockX",
-    tips:["Men's sizes 9–11 are most liquid but 12+ fetch premiums","Lace swaps lower value — keep original laces","Creasing and sole yellowing are the biggest value killers"] },
-
-  { keys:["nike dunk low","dunk low","sb dunk","dunk high","nike dunk"], tier:"A", brand:"Nike", category:"Sneakers",
-    desc:"Nike Dunks remain one of the hottest resale categories. Pandas, University Blues, and SB collabs lead the market. The Dunk market has softened slightly from its peak but strong colorways still perform well.",
-    platforms:{"eBay":"$90–$260","StockX":"$100–$280","GOAT":"$95–$270","Depop":"$85–$240","Mercari":"$80–$230","Poshmark":"$85–$245"},
-    buy:"$40–$100", profit:"$35–$160", bestPlatform:"StockX",
-    tips:["Pandas and UNC colorways are the most liquid","SB collabs command 2-3x general release prices","Size 8.5W sells as men's 7 — opens more buyers"] },
-
-  { keys:["yeezy","adidas yeezy","yeezy 350","boost 350","foam runner","yeezy slide","yeezy 700"], tier:"A", brand:"Adidas", category:"Sneakers",
-    desc:"Yeezys remain strong resale performers despite increased supply. Zebra, Beluga, and Natural colorways are the most consistent earners. Condition and sizing affect price significantly.",
-    platforms:{"eBay":"$140–$350","StockX":"$150–$380","GOAT":"$145–$370","Depop":"$130–$330","Mercari":"$120–$310"},
-    buy:"$60–$120", profit:"$50–$200", bestPlatform:"StockX",
-    tips:["Zebra and Beluga colorways are the safest bets","Foam Runners in earth tones sell fastest","Avoid cleaning with harsh chemicals — midsole crumbles"] },
-
-  { keys:["supreme","supreme hoodie","supreme jacket","supreme tee","supreme shirt","supreme sweatshirt"], tier:"A", brand:"Supreme", category:"Streetwear",
-    desc:"Supreme pieces beyond the box logo hold solid resale value especially outerwear and hoodies. FW (Fall/Winter) pieces command more than SS (Spring/Summer). Collab pieces fetch the highest premiums.",
-    platforms:{"eBay":"$100–$400","Depop":"$110–$420","Poshmark":"$95–$380","Mercari":"$90–$360","StockX":"$120–$450"},
-    buy:"$40–$120", profit:"$50–$250", bestPlatform:"Depop",
-    tips:["FW drops fetch 30-40% more than SS equivalents","Collab pieces (Nike, The North Face, Timberland) sell fastest","Tags must be present — no tag drops value by 15-20%"] },
-
-  { keys:["patagonia","synchilla","snap-t","patagonia fleece","retro pile","patagonia jacket"], tier:"A", brand:"Patagonia", category:"Outerwear",
-    desc:"Vintage Patagonia is one of the strongest outdoor resale categories right now. Synchilla and retro pile fleeces lead demand. Made in USA tags and 90s-era pieces command the biggest premiums.",
-    platforms:{"eBay":"$80–$200","Depop":"$90–$220","Poshmark":"$75–$190","Mercari":"$70–$180","Facebook Marketplace":"$60–$150"},
-    buy:"$12–$30", profit:"$45–$160", bestPlatform:"Depop",
-    tips:["Made in USA tags add $40-60 to value instantly","Snap-T pulls fetch more than full-zip styles","Earth tones and bright 90s colors outsell neutrals"] },
-
-  { keys:["carhartt","detroit jacket","chore coat","carhartt wip","carhartt work jacket","active jacket"], tier:"A", brand:"Carhartt", category:"Workwear",
-    desc:"Carhartt is experiencing a sustained popularity surge in both streetwear and workwear markets. Detroit Jackets and chore coats are the most sought-after pieces. Heavy fading and wear paradoxically adds character and value.",
-    platforms:{"eBay":"$65–$210","Depop":"$75–$230","Poshmark":"$60–$195","Mercari":"$55–$180","Facebook Marketplace":"$50–$160"},
-    buy:"$15–$40", profit:"$35–$160", bestPlatform:"Depop",
-    tips:["WIP (Work In Progress) sub-label pieces fetch 40% more","Heavy canvas Detroit Jackets outsell lighter pieces","Faded naturally worn pieces are preferred — don't try to clean too much"] },
-
-  { keys:["band tee","vintage tee","rap tee","concert tee","band t-shirt","tour tee","bootleg tee"], tier:"A", brand:"Vintage", category:"Tops",
-    desc:"Vintage band and rap tees are among the most lucrative thrift flips available. 80s and 90s originals in good condition fetch serious money. Single-stitch construction is the key indicator of authentic vintage pieces.",
-    platforms:{"eBay":"$55–$350","Depop":"$65–$380","Poshmark":"$50–$320","Mercari":"$45–$300"},
-    buy:"$5–$35", profit:"$35–$280", bestPlatform:"Depop",
-    tips:["Single-stitch neck and sleeves confirm pre-1990s vintage","Screen Stars, Fruit of the Loom, and Hanes tags add authenticity","Iron-on style printing is not screen print — worth much less"] },
-
-  // B TIER
-  { keys:["ralph lauren","polo ralph","polo shirt","polo bear","rl polo"], tier:"B", brand:"Ralph Lauren", category:"Tops",
-    desc:"Vintage Ralph Lauren is a reliable and consistent thrift flip. Stadium, Country Club, and Polo Sport sub-brands command the strongest premiums. Larger sizes (XL, XXL) consistently outsell smaller sizes due to streetwear oversized demand.",
-    platforms:{"eBay":"$28–$85","Depop":"$32–$95","Poshmark":"$25–$80","Mercari":"$22–$75","Facebook Marketplace":"$18–$55"},
-    buy:"$3–$12", profit:"$15–$65", bestPlatform:"Depop",
-    tips:["XL and XXL sizes outsell smalls by 2x in price","Polo Bear and Stadium Collection add 50-100% value","Avoid buying faded collars or stretched necks — they won't sell"] },
-
-  { keys:["levi","levis","levi's","501","505","517","vintage levi","vintage jeans","usa levi"], tier:"B", brand:"Levi's", category:"Denim",
-    desc:"Vintage Levi's — especially USA-made 501s — are a staple thrift flip with consistent demand year-round. Red Tab, Big E, and Orange Tab variants command the strongest premiums. Accurate measurements are essential.",
-    platforms:{"eBay":"$40–$140","Depop":"$45–$155","Poshmark":"$38–$130","Mercari":"$35–$120","Facebook Marketplace":"$28–$90"},
-    buy:"$5–$20", profit:"$22–$110", bestPlatform:"Depop",
-    tips:["Measure waist and inseam precisely — wrong sizing kills sales","Big E and Orange Tab add $30-50 in value","Made in USA tag commands a 40% premium over imported"] },
-
-  { keys:["north face","nuptse","puffer jacket","north face fleece","north face jacket","northface"], tier:"B", brand:"The North Face", category:"Outerwear",
-    desc:"Vintage North Face outerwear consistently performs well in the resale market. Nuptse puffer jackets and fleeces from the 90s and early 2000s are most valuable. Bright colors and older branding command the highest premiums.",
-    platforms:{"eBay":"$55–$210","Depop":"$60–$225","Poshmark":"$50–$195","Mercari":"$45–$180","Facebook Marketplace":"$40–$150"},
-    buy:"$15–$45", profit:"$28–$155", bestPlatform:"Depop",
-    tips:["Half-dome logo (older) vs. modern logo — older commands 30% more","Bright 90s colorways (red, cobalt, forest green) outsell black","Check all zippers and drawcords before buying"] },
-
-  { keys:["nike","air max","air force 1","af1","nike cortez","nike windbreaker","nike acg","vintage nike"], tier:"B", brand:"Nike", category:"Sneakers",
-    desc:"Nike has broad and consistent resale appeal across all categories. Retro and vintage pieces perform best. ACG, vintage windbreakers, and heritage silhouettes are particularly strong sellers in the current market.",
-    platforms:{"eBay":"$45–$155","Depop":"$50–$165","Poshmark":"$42–$145","Mercari":"$38–$135","StockX":"$55–$170"},
-    buy:"$18–$60", profit:"$18–$90", bestPlatform:"eBay",
-    tips:["ACG (All Conditions Gear) vintage pieces are especially hot right now","Windbreakers from the 90s fetch $80-200 in good condition","Check midsole for yellowing before buying — it's hard to reverse"] },
-
-  { keys:["adidas","samba","gazelle","stan smith","adidas campus","nmd","ultraboost","adidas originals"], tier:"B", brand:"Adidas", category:"Sneakers",
-    desc:"Adidas Originals classics are having a sustained moment. Sambas and Gazelles lead demand driven by fashion editorial coverage. Clean pairs in desirable colorways sell quickly across all platforms.",
-    platforms:{"eBay":"$45–$135","Depop":"$50–$145","Poshmark":"$42–$125","Mercari":"$38–$118","StockX":"$55–$150"},
-    buy:"$18–$55", profit:"$18–$80", bestPlatform:"Depop",
-    tips:["White Sambas and black Sambas are the most liquid colorways","Campus 80s and Gazelles in suede outsell nylon versions","Yellowed midsoles can be whitened with Mr. Clean Magic Eraser"] },
-
-  { keys:["tommy hilfiger","tommy jeans","vintage tommy","tommy hilfiger jacket","tommy spell out"], tier:"B", brand:"Tommy Hilfiger", category:"Tops",
-    desc:"Vintage Tommy Hilfiger — especially 90s spell-out and color-block pieces — is a reliable and consistent flip. Jackets, windbreakers, and rugby shirts perform best. The market is steady year-round.",
-    platforms:{"eBay":"$30–$110","Depop":"$35–$120","Poshmark":"$28–$100","Mercari":"$25–$95"},
-    buy:"$5–$20", profit:"$18–$85", bestPlatform:"Depop",
-    tips:["Spell-out logo pieces fetch double plain logo items","Windbreakers and color-block jackets outsell polos","90s era pieces are worth significantly more than 2000s"] },
-
-  // C TIER
-  { keys:["lululemon","lululemon leggings","lulu lemon","align","wunder under"], tier:"C", brand:"Lululemon", category:"Athletic",
-    desc:"Lululemon has solid secondary market demand, particularly for leggings and sports bras. Align and Wunder Under styles move fastest. The market is active but competitive with many sellers.",
-    platforms:{"eBay":"$25–$75","Poshmark":"$28–$80","Depop":"$22–$70","Mercari":"$20–$65"},
-    buy:"$8–$25", profit:"$10–$45", bestPlatform:"Poshmark",
-    tips:["Align leggings in black and neutral colors sell fastest","No pilling is essential — buyers check photos carefully","Bundle 2-3 pieces together to increase average order value"] },
-
-  { keys:["coach bag","kate spade","michael kors","mk bag","coach purse"], tier:"C", brand:"Contemporary Designer", category:"Accessories",
-    desc:"Contemporary designer brands like Coach, Kate Spade, and Michael Kors have a solid but competitive resale market. Condition and style significantly impact sellability. Classic silhouettes perform better than trendy designs.",
-    platforms:{"eBay":"$20–$120","Poshmark":"$22–$130","Depop":"$18–$110","Mercari":"$18–$105"},
-    buy:"$5–$30", profit:"$10–$80", bestPlatform:"Poshmark",
-    tips:{"0":"Classic silhouettes (Tabby, Pillow Tabby) outsell trendy designs","1":"Hardware scratching drops value by 30% — inspect before buying","2":"Dust bag and original packaging add $15-25 to final price"}},
-
-  // D TIER
-  { keys:["h&m","zara","shein","forever 21","fashion nova","primark","target clothing","old navy"], tier:"D", brand:"Fast Fashion", category:"Fast Fashion",
-    desc:"Fast fashion brands have minimal resale value due to massive supply and low buyer interest. The market is saturated with thousands of identical listings. Your time and shipping costs will likely exceed any profit.",
-    platforms:{"eBay":"$3–$9","Poshmark":"$4–$11","Depop":"$3–$8","Mercari":"$3–$7"},
-    buy:"$0–$2", profit:"$0–$4", bestPlatform:"Mercari",
-    tips:["Only list if you paid essentially nothing — $1 or less","Bundle 5-10 pieces into a lot to justify shipping costs","Exception: viral pieces or limited collabs can be worth listing"] },
-
-  // F TIER
-  { keys:["generic","no brand","unbranded","mystery","unknown brand"], tier:"F", brand:"Unknown", category:"General",
-    desc:"Unbranded or generic clothing items have virtually no resale market. Without recognizable branding or vintage appeal, buyers have no reason to purchase secondhand over buying new at retail.",
-    platforms:{"eBay":"$1–$5","Poshmark":"$2–$6","Depop":"$1–$4","Mercari":"$1–$4"},
-    buy:"$0", profit:"$0", bestPlatform:"eBay",
-    tips:["Donate rather than list — the tax write-off is worth more","Focus your thrifting energy on branded and vintage items","Exception: unusual or quirky pieces with novelty value"] },
+const MOCK_TIDES = [
+  { type: "H", height: "5.4", time: "6:12 AM" },
+  { type: "L", height: "0.8", time: "12:34 PM" },
+  { type: "H", height: "5.7", time: "6:48 PM" },
+  { type: "L", height: "0.6", time: "1:02 AM" },
 ];
 
-const EXPERT_TIPS = {
-  S: ["List within 24-48 hours of acquiring — hype fades and early sellers always command the premium price.","Cross-list on StockX AND eBay simultaneously — StockX for authentication trust, eBay for price flexibility.","Professional photographs on a clean white background add perceived value and reduce buyer questions."],
-  A: ["Research the last 20 completed eBay sales (filter by 'Sold') before pricing — never guess.","List Thursday evening for best weekend visibility — resale browsers peak Friday–Sunday.","Offer combined shipping if you have multiple pieces — bundles increase average order value significantly."],
-  B: ["Steam or lightly iron before photographing — clean presentation adds 15-25% to buyer perception.","Natural window light beats flash photography every time — colors look accurate and textures pop.","Measure and list exact dimensions (chest, length, waist) — listings with measurements sell 40% faster."],
-  C: ["Price 10-15% below comparable listings to move inventory quickly — holding costs eat margins.","Refresh your listing every 3-4 days on Depop and Poshmark using their share/relist feature.","Consider donating if it sits unsold for 30 days — carrying cost and time investment may exceed profit."],
-  D: ["Only worth listing if your total cost including time is under $2 — margins disappear with fees.","Bundle D-tier items (5-10 pieces as a lot) — buyers will pay for bulk even at low per-item price.","Redirect your thrifting energy to A and S tier categories — same time investment, 10x the return."],
-  F: ["Leave it on the rack — your time has real value and this item doesn't justify any of it.","If you already own it, donate for the tax deduction — worth more than any potential sale price.","Use this moment to study what makes items valuable: branding, era, condition, and cultural relevance."],
-};
-
-function adjustPrice(price, mult) {
-  if (!price || mult === 1.0) return price;
-  return price.replace(/\$([\d,]+)/g, (_, n) => "$" + Math.round(parseInt(n.replace(",","")) * mult).toLocaleString());
+// ── WAVE ANIMATION ───────────────────────────────────────
+function WaveAnimation({ color, height }) {
+  const [offset, setOffset] = useState(0);
+  useEffect(() => {
+    const iv = setInterval(() => setOffset(o => (o + 1) % 200), 50);
+    return () => clearInterval(iv);
+  }, []);
+  const waveCount = Math.max(1, Math.min(5, Math.round(parseFloat(height))));
+  return (
+    <svg width="100%" height="80" viewBox="0 0 400 80" preserveAspectRatio="none" style={{ position: "absolute", bottom: 0, left: 0 }}>
+      {[...Array(waveCount)].map((_, i) => (
+        <path key={i}
+          d={`M ${-offset + i * 40} 60 Q ${-offset + i * 40 + 50} ${40 - i * 5} ${-offset + i * 40 + 100} 60 Q ${-offset + i * 40 + 150} ${80 - i * 5} ${-offset + i * 40 + 200} 60 Q ${-offset + i * 40 + 250} ${40 - i * 5} ${-offset + i * 40 + 300} 60 Q ${-offset + i * 40 + 350} ${80 - i * 5} ${-offset + i * 40 + 400} 60 L 400 80 L 0 80 Z`}
+          fill={color} opacity={0.15 + i * 0.05}
+        />
+      ))}
+    </svg>
+  );
 }
 
-function analyze(input) {
-  const q = input.toLowerCase();
-  for (const item of ITEMS) {
-    if (item.keys.some(k => q.includes(k))) return item;
-  }
-  // Smart fallback based on keywords
-  if (["vintage","90s","80s","70s","retro","deadstock"].some(k => q.includes(k)))
-    return { tier:"B", brand:"Vintage", category:"Vintage", desc:"Vintage clothing has solid resale potential when branded and in good condition. Research the specific brand and era to price accurately.", platforms:{"eBay":"$25–$100","Depop":"$28–$110","Poshmark":"$22–$95","Mercari":"$20–$90"}, buy:"$4–$18", profit:"$12–$70", bestPlatform:"Depop", tips:["Research completed sales before pricing","Single-stitch construction confirms pre-1990s era","Photograph all tags and labels — buyers want to verify era"] };
-  return { tier:"C", brand:"General", category:"Clothing", desc:"This item has moderate resale potential. Accurate pricing based on current market comparables will be key. Research completed eBay sales before listing to set a competitive price.", platforms:{"eBay":"$12–$55","Poshmark":"$15–$60","Depop":"$12–$52","Mercari":"$10–$48","Facebook Marketplace":"$8–$40"}, buy:"$2–$10", profit:"$6–$35", bestPlatform:"eBay", tips:["Check eBay completed sales to price accurately","Clean and photograph in good lighting","Start price 10% below market to attract first buyers"] };
+// ── WIND ARROW ───────────────────────────────────────────
+function WindArrow({ deg, color, size = 32 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" style={{ transform: `rotate(${deg}deg)` }}>
+      <polygon points="16,2 20,20 16,17 12,20" fill={color} opacity="0.9"/>
+      <polygon points="16,30 20,12 16,15 12,12" fill={color} opacity="0.4"/>
+    </svg>
+  );
 }
 
-const GS = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@300;400;500;600;700&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{background:#f8f6f1;color:#1a1a1a;}
-  button{cursor:pointer;font-family:'Inter',sans-serif;}
-  textarea,select,input{font-family:'Inter',sans-serif;outline:none;}
-  a{text-decoration:none;}
-  .card{background:#fff;border:1px solid #e8e3da;border-radius:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
-  .btn-primary{background:#1a1a1a;color:#fff;border:none;border-radius:10px;padding:14px 28px;font-family:'Inter',sans-serif;font-weight:600;font-size:15px;cursor:pointer;transition:all 0.2s;}
-  .btn-primary:hover{background:#333;}
-  .upload-zone{border:2px dashed #d4cfc4;border-radius:14px;padding:28px 20px;text-align:center;cursor:pointer;transition:all 0.2s;background:#faf8f4;}
-  .upload-zone:hover{border-color:#1a1a1a;background:#f0ede6;}
-  .platform-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-radius:10px;transition:background 0.15s;}
-  .platform-row:hover{background:#f8f6f1;}
-`;
+// ── CAM WIDGET ───────────────────────────────────────────
+function CamWidget({ beach, data }) {
+  const [time, setTime] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
-export default function App() {
-  const [page, setPage]         = useState("paywall");
-  const [plan, setPlan]         = useState(null);
-  const [query, setQuery]       = useState("");
-  const [condition, setCond]    = useState("likenew");
-  const [imgPreview, setImg]    = useState(null);
-  const [loading, setLoading]   = useState(false);
-  const [result, setResult]     = useState(null);
-  const [history, setHistory]   = useState([]);
-  const [used, setUsed]         = useState(0);
-  const fileRef = useRef(null);
+  const windMph    = mpsToMph(data.windspeed);
+  const windDir    = degToDir(data.winddirection);
+  const isOffshore = data.winddirection >= 180 && data.winddirection <= 360;
+  const heightFt   = metersToFeet(data.wave_height);
+  const period     = Math.round(data.wave_period);
+  const score      = getSurfScore(data.wave_height, period, windMph, isOffshore);
+  const surf       = getSurfLabel(score);
+  const tempF      = Math.round(data.temperature * 9/5 + 32);
 
-  const currentPlan = plan ? PLANS[plan] : null;
-  const cond = CONDITIONS[condition] || CONDITIONS.likenew;
+  const hour = time.getHours();
+  const isNight  = hour < 6 || hour >= 20;
+  const isDawnDusk = (hour >= 6 && hour < 8) || (hour >= 18 && hour < 20);
+  const sky1 = isNight ? "#0c1445" : isDawnDusk ? "#c2410c" : "#1a6bb5";
+  const sky2 = isNight ? "#1a237e" : isDawnDusk ? "#f97316" : "#42a5f5";
 
-  function handleImg(file) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = e => { if (e.target && e.target.result) setImg(e.target.result); };
-    reader.readAsDataURL(file);
-  }
+  return (
+    <div style={{ borderRadius: 16, overflow: "hidden", border: `2px solid ${beach.color}50`, boxShadow: "0 8px 32px rgba(0,0,0,0.25)" }}>
+      {/* Sky & ocean scene */}
+      <div style={{ height: 190, position: "relative", background: `linear-gradient(180deg, ${sky1} 0%, ${sky2} 45%, #1565c0 65%, #0d47a1 80%, #01579b 100%)`, overflow: "hidden" }}>
+        {isNight && [...Array(18)].map((_, i) => (
+          <div key={i} style={{ position: "absolute", width: 2, height: 2, background: "#fff", borderRadius: "50%", top: `${(i * 13 + 5) % 42}%`, left: `${(i * 19 + 3) % 100}%`, opacity: 0.7 }} />
+        ))}
+        <div style={{ position: "absolute", top: 18, right: 36, width: isNight ? 26 : 34, height: isNight ? 26 : 34, borderRadius: "50%", background: isNight ? "#f5f0e8" : "#ffd54f", boxShadow: isNight ? "0 0 10px #f5f0e860" : "0 0 20px #ffd54f80" }} />
+        <div style={{ position: "absolute", top: "44%", left: 0, right: 0, height: 1, background: "rgba(255,255,255,0.15)" }} />
+        <WaveAnimation color={beach.color} height={heightFt} />
 
-  function rate() {
-    const q = query.trim() || "clothing item";
-    // No plan = strictly 1 free rating, then hard paywall every time
-    if (!plan && used >= 1) { setPage("paywall"); return; }
-    // Has plan but hit monthly limit
-    if (plan && currentPlan && used >= currentPlan.ratingLimit) { setPage("paywall"); return; }
-    setLoading(true);
-    const item = analyze(q);
-    const mult = cond.mult;
-    const prices = Object.entries(item.platforms).map(([name, price]) => ({ name, price: adjustPrice(price, mult) }));
-    const r = { id: Date.now(), name: q, imgPreview, condition, tier: item.tier, brand: item.brand, category: item.category, desc: item.desc, prices, buy: adjustPrice(item.buy, mult), profit: adjustPrice(item.profit, mult), bestPlatform: item.bestPlatform, tips: item.tips instanceof Array ? item.tips : Object.values(item.tips) };
-    setTimeout(() => { setResult(r); setHistory(h => [r, ...h.slice(0,9)]); setUsed(n => n+1); setQuery(""); setImg(null); setLoading(false); setPage("result"); }, 700);
-  }
-
-  // ── PAYWALL ──────────────────────────────────────────────
-  if (page === "paywall") return (
-    <div style={{background:"#f8f6f1",minHeight:"100vh"}}>
-      <style>{GS}</style>
-      <div style={{background:"#fff",borderBottom:"1px solid #e8e3da",height:60,display:"flex",alignItems:"center",justifyContent:"center"}}>
-        <span style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:700,letterSpacing:"-0.3px"}}>Flip<span style={{color:"#2d6a4f"}}>Rank</span></span>
-      </div>
-      <div style={{maxWidth:680,margin:"0 auto",padding:"48px 20px 80px"}}>
-        <div style={{textAlign:"center",marginBottom:48}}>
-          <div style={{display:"inline-block",background:"#e8f5ee",borderRadius:20,padding:"6px 16px",marginBottom:16,fontFamily:"'Inter',sans-serif",fontSize:13,color:"#2d6a4f",fontWeight:600,letterSpacing:"0.02em"}}>AI RESALE INTELLIGENCE</div>
-          <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:"clamp(32px,6vw,54px)",fontWeight:700,lineHeight:1.1,letterSpacing:"-0.5px",marginBottom:16}}>Flip Smarter.<br/><span style={{color:"#2d6a4f"}}>Profit More.</span></h1>
-          <p style={{fontFamily:"'Inter',sans-serif",color:"#6b6560",fontSize:17,lineHeight:1.7,maxWidth:440,margin:"0 auto"}}>Instant tier ratings, real platform prices, and profit estimates for any clothing item — condition-adjusted and ready to act on.</p>
+        {/* Overlays */}
+        <div style={{ position: "absolute", top: 10, left: 12, display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#ef4444" }} />
+          <span style={{ fontFamily: "monospace", fontSize: 11, color: "#fff", fontWeight: 700, letterSpacing: "0.06em", textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>● LIVE CAM</span>
         </div>
-        <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          {Object.entries(PLANS).map(([key, p]) => (
-            <div key={key} className="card" style={{padding:"28px 32px",border:key==="pro"?"2px solid #c2410c":"1px solid #e8e3da",position:"relative"}}>
-              {key==="pro" && <div style={{position:"absolute",top:-13,right:24,background:"#c2410c",color:"#fff",borderRadius:20,padding:"4px 14px",fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:700,letterSpacing:"0.05em"}}>MOST POPULAR</div>}
-              {key==="elite" && <div style={{position:"absolute",top:-13,right:24,background:"#6d28d9",color:"#fff",borderRadius:20,padding:"4px 14px",fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:700,letterSpacing:"0.05em"}}>BEST VALUE</div>}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
-                <div>
-                  <div style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:700,marginBottom:6}}>{p.name}</div>
-                  <div style={{display:"flex",alignItems:"baseline",gap:4}}>
-                    <span style={{fontFamily:"'Playfair Display',serif",fontSize:36,fontWeight:700,color:p.color}}>{p.price}</span>
-                    <span style={{fontFamily:"'Inter',sans-serif",fontSize:14,color:"#9b9590",fontWeight:400}}>{p.period}</span>
-                  </div>
+        <div style={{ position: "absolute", top: 10, right: 12 }}>
+          <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: "#fff", fontWeight: 700, background: "rgba(0,0,0,0.45)", borderRadius: 6, padding: "3px 8px" }}>{beach.short}</span>
+        </div>
+        <div style={{ position: "absolute", bottom: 88, left: 12 }}>
+          <span style={{ fontFamily: "monospace", fontSize: 11, color: "rgba(255,255,255,0.7)", textShadow: "0 1px 4px rgba(0,0,0,0.9)" }}>
+            {time.toLocaleDateString("en-US", { month: "short", day: "numeric" })} {time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          </span>
+        </div>
+        <div style={{ position: "absolute", bottom: 88, right: 12, background: surf.color, borderRadius: 8, padding: "3px 10px" }}>
+          <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: "#fff", fontWeight: 800 }}>{surf.label}</span>
+        </div>
+      </div>
+
+      {/* Data bar */}
+      <div style={{ background: "#0c1c2c", padding: "12px 14px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 4 }}>
+          {[
+            { label: "WAVES",  value: `${heightFt}ft`,  icon: "🌊" },
+            { label: "PERIOD", value: `${period}s`,      icon: "⏱️" },
+            { label: "WIND",   value: `${windMph}mph`,   icon: "💨" },
+            { label: "DIR",    arrow: true },
+            { label: "TEMP",   value: `${tempF}°F`,      icon: "🌡️" },
+          ].map((s, i) => (
+            <div key={i} style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 9, fontWeight: 700, color: "#64748b", letterSpacing: "0.08em", marginBottom: 3 }}>{s.label}</div>
+              {s.arrow ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                  <WindArrow deg={data.winddirection} color={isOffshore ? "#4ade80" : "#f87171"} size={24} />
+                  <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 10, fontWeight: 700, color: isOffshore ? "#4ade80" : "#f87171" }}>{windDir}</span>
                 </div>
-                <a href={p.stripe} target="_blank" rel="noopener noreferrer" onClick={()=>{setPlan(key);setTimeout(()=>setPage("home"),300)}}
-                  style={{background:p.color,color:"#fff",borderRadius:12,padding:"12px 24px",fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:15,display:"inline-block",whiteSpace:"nowrap"}}>
-                  Get Started →
-                </a>
-              </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 24px"}}>
-                {p.features.map((f,i) => <div key={i} style={{fontFamily:"'Inter',sans-serif",fontSize:13.5,color:f.startsWith("✅")?"#374151":"#c4bdb5",fontWeight:f.startsWith("✅")?500:400,display:"flex",alignItems:"center",gap:6}}>{f}</div>)}
-              </div>
-              {key==="basic" && <div style={{marginTop:16,paddingTop:16,borderTop:"1px solid #f0ede6",fontFamily:"'Inter',sans-serif",fontSize:13,color:p.color,fontWeight:600}}>⚡ 25 ratings included per month</div>}
-              {key!=="basic" && <div style={{marginTop:16,paddingTop:16,borderTop:"1px solid #f0ede6",fontFamily:"'Inter',sans-serif",fontSize:13,color:p.color,fontWeight:600}}>∞ Unlimited ratings every month</div>}
+              ) : (
+                <div>
+                  <div style={{ fontSize: 13, marginBottom: 1 }}>{s.icon}</div>
+                  <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 700, color: "#f5f0e8" }}>{s.value}</div>
+                </div>
+              )}
             </div>
           ))}
         </div>
-        <div style={{textAlign:"center",marginTop:24}}>
-          <button onClick={()=>setPage("home")} style={{background:"none",border:"none",fontFamily:"'Inter',sans-serif",fontSize:14,color:"#9b9590",fontWeight:500,cursor:"pointer",textDecoration:"underline"}}>
-            Try 1 free rating first — no card needed
-          </button>
-        </div>
       </div>
+
+      {/* Quality bar */}
+      <div style={{ background: "#0a1520", padding: "8px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 10, color: "#64748b", fontWeight: 600, whiteSpace: "nowrap" }}>SURF QUALITY</span>
+        <div style={{ flex: 1, height: 5, background: "#1e3a5f", borderRadius: 3, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${surf.score * 10}%`, background: surf.color, borderRadius: 3 }} />
+        </div>
+        <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, fontWeight: 700, color: surf.color, whiteSpace: "nowrap" }}>{surf.score}/10</span>
+      </div>
+
+      {/* Surfline link */}
+      <div style={{ background: "#0f1e30", padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "#64748b", marginBottom: 2 }}>Want the real video cam?</div>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: "#f5f0e8", fontWeight: 600 }}>View on Surfline ↗</div>
+        </div>
+        <a href={beach.surflineUrl} target="_blank" rel="noopener noreferrer"
+          style={{ background: "#0ea5e9", color: "#fff", borderRadius: 8, padding: "8px 14px", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, display: "inline-block", textDecoration: "none" }}>
+          Open →
+        </a>
+      </div>
+
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}`}</style>
     </div>
   );
+}
 
-  // ── RESULT PAGE ──────────────────────────────────────────
-  if (page === "result" && result) {
-    const T = TIERS[result.tier] || TIERS["C"];
-    return (
-      <div style={{background:"#f8f6f1",minHeight:"100vh"}}>
-        <style>{GS}</style>
-        <div style={{background:"#fff",borderBottom:"1px solid #e8e3da",height:60,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 24px",position:"sticky",top:0,zIndex:99}}>
-          <button onClick={()=>!plan&&used>=1?setPage("paywall"):setPage("home")} style={{background:"none",border:"1px solid #e8e3da",borderRadius:8,padding:"7px 16px",fontFamily:"'Inter',sans-serif",fontWeight:500,fontSize:14,color:"#4b4540"}}>← Back</button>
-          <span style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700}}>Flip<span style={{color:"#2d6a4f"}}>Rank</span></span>
-          <button onClick={()=>!plan&&used>=1?setPage("paywall"):setPage("home")} style={{background:"#1a1a1a",border:"none",borderRadius:8,padding:"7px 16px",fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:14,color:"#fff"}}>+ New Rating</button>
-        </div>
-
-        <div style={{maxWidth:640,margin:"0 auto",padding:"32px 20px 80px"}}>
-
-          {/* Hero tier card */}
-          <div style={{background:T.bg,border:`1.5px solid ${T.border}`,borderRadius:20,padding:"32px 28px",marginBottom:20,position:"relative",overflow:"hidden"}}>
-            <div style={{position:"absolute",top:0,right:0,width:120,height:120,background:T.color,opacity:0.06,borderRadius:"0 0 0 120px"}}/>
-            {result.imgPreview && <img src={result.imgPreview} alt="item" style={{width:80,height:80,borderRadius:12,objectFit:"cover",border:"3px solid #fff",boxShadow:"0 4px 12px rgba(0,0,0,0.15)",marginBottom:16,display:"block"}}/>}
-            <div style={{display:"flex",alignItems:"flex-start",gap:20}}>
-              <div style={{width:80,height:80,borderRadius:16,background:"#fff",border:`3px solid ${T.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Playfair Display',serif",fontSize:44,fontWeight:700,color:T.color,flexShrink:0,boxShadow:`0 4px 16px ${T.color}30`}}>
-                {result.tier}
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:T.color,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6}}>{T.label} · {T.sub}</div>
-                <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:"#1a1a1a",lineHeight:1.3,marginBottom:6}}>{result.name}</div>
-                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                  <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:"#6b6560",background:"rgba(0,0,0,0.06)",borderRadius:20,padding:"3px 10px",fontWeight:500}}>{result.brand}</span>
-                  <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:"#6b6560",background:"rgba(0,0,0,0.06)",borderRadius:20,padding:"3px 10px",fontWeight:500}}>{result.category}</span>
-                  <span style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:T.color,background:T.bg,border:`1px solid ${T.border}`,borderRadius:20,padding:"3px 10px",fontWeight:600}}>{cond.label}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Analysis */}
-          <div className="card" style={{padding:"22px 24px",marginBottom:16}}>
-            <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:"#9b9590",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}}>Expert Analysis</div>
-            <p style={{fontFamily:"'Inter',sans-serif",fontSize:15,color:"#374151",lineHeight:1.75,fontWeight:400}}>{result.desc}</p>
-            <div style={{marginTop:12,padding:"10px 14px",background:"#f8f6f1",borderRadius:8,fontFamily:"'Inter',sans-serif",fontSize:13,color:"#6b6560",fontWeight:500}}>
-              📍 Condition note: {cond.note} — prices adjusted {Math.round((1-cond.mult)*100)}% from mint condition.
-            </div>
-          </div>
-
-          {/* Profit + Buy — Pro/Elite */}
-          {currentPlan && currentPlan.hasProfit ? (
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-              <div style={{background:"#f0fdf4",border:"1.5px solid #86efac",borderRadius:16,padding:"18px 20px"}}>
-                <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:"#15803d",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>Est. Profit</div>
-                <div style={{fontFamily:"'Playfair Display',serif",fontSize:30,fontWeight:700,color:"#15803d",marginBottom:4}}>{result.profit}</div>
-                <div style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:"#4ade80",fontWeight:500}}>after platform fees & shipping</div>
-              </div>
-              <div style={{background:"#fff7ed",border:"1.5px solid #fdba74",borderRadius:16,padding:"18px 20px"}}>
-                <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:"#c2410c",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>Max Source Price</div>
-                <div style={{fontFamily:"'Playfair Display',serif",fontSize:30,fontWeight:700,color:"#c2410c",marginBottom:4}}>{result.buy}</div>
-                <div style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:"#fb923c",fontWeight:500}}>at thrift / garage sale</div>
-              </div>
-            </div>
-          ) : (
-            <div className="card" style={{padding:"18px 22px",marginBottom:16,textAlign:"center",borderStyle:"dashed"}}>
-              <div style={{fontFamily:"'Inter',sans-serif",fontSize:14,color:"#9b9590",fontWeight:500,marginBottom:10}}>🔒 Profit estimates & fee breakdowns available on Pro & Elite</div>
-              <a href={STRIPE.pro} target="_blank" rel="noopener noreferrer" style={{background:"#c2410c",color:"#fff",borderRadius:8,padding:"9px 20px",fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:14,display:"inline-block"}}>Upgrade to Pro →</a>
-            </div>
-          )}
-
-          {/* Best platform callout */}
-          {result.bestPlatform && (
-            <div style={{background:"#fefce8",border:"1px solid #fde047",borderRadius:14,padding:"14px 18px",marginBottom:16,display:"flex",gap:12,alignItems:"center"}}>
-              <span style={{fontSize:20}}>⭐</span>
-              <div>
-                <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:"#a16207",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>Recommended Platform</div>
-                <div style={{fontFamily:"'Inter',sans-serif",fontSize:14,color:"#374151",fontWeight:500}}><strong>{result.bestPlatform}</strong> — best audience and pricing for this specific item</div>
-              </div>
-            </div>
-          )}
-
-          {/* Platform prices */}
-          <div className="card" style={{padding:"22px 24px",marginBottom:16}}>
-            <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:"#9b9590",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:14}}>Platform Price Ranges</div>
-            <div style={{display:"flex",flexDirection:"column",gap:2}}>
-              {result.prices.map((p,i) => {
-                const pl = PLATFORMS.find(x => x.name === p.name) || {emoji:"🔗",url:"https://ebay.com",fee:0};
-                return currentPlan && currentPlan.hasLinks ? (
-                  <a key={i} href={pl.url} target="_blank" rel="noopener noreferrer" className="platform-row">
-                    <div style={{display:"flex",alignItems:"center",gap:12}}>
-                      <span style={{fontSize:20,width:28,textAlign:"center"}}>{pl.emoji}</span>
-                      <div>
-                        <div style={{fontFamily:"'Inter',sans-serif",fontSize:14,fontWeight:600,color:"#1a1a1a"}}>{p.name}</div>
-                        {currentPlan && currentPlan.hasProfit && <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"#9b9590",fontWeight:400}}>{Math.round(pl.fee*100)}% platform fee · tap to list ↗</div>}
-                        {(!currentPlan || !currentPlan.hasProfit) && <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,color:"#9b9590",fontWeight:400}}>tap to open & list ↗</div>}
-                      </div>
-                    </div>
-                    <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:T.color}}>{p.price}</div>
-                  </a>
-                ) : (
-                  <div key={i} className="platform-row">
-                    <div style={{display:"flex",alignItems:"center",gap:12}}>
-                      <span style={{fontSize:20,width:28,textAlign:"center"}}>{pl.emoji}</span>
-                      <div style={{fontFamily:"'Inter',sans-serif",fontSize:14,fontWeight:600,color:"#1a1a1a"}}>{p.name}</div>
-                    </div>
-                    <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:T.color}}>{p.price}</div>
-                  </div>
-                );
-              })}
-            </div>
-            {(!currentPlan || !currentPlan.hasLinks) && (
-              <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid #f0ede6",textAlign:"center"}}>
-                <a href={STRIPE.pro} target="_blank" rel="noopener noreferrer" style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:"#c2410c",fontWeight:600}}>🔒 Upgrade to Pro for direct listing links →</a>
-              </div>
-            )}
-          </div>
-
-          {/* Expert Tips — Elite only */}
-          {currentPlan && currentPlan.hasTips && result.tips && result.tips.length > 0 && (
-            <div className="card" style={{padding:"22px 24px",marginBottom:16,border:"1px solid #ddd6fe"}}>
-              <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:700,color:"#6d28d9",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:14}}>⚡ Expert Reseller Insights</div>
-              {result.tips.map((tip,i) => (
-                <div key={i} style={{display:"flex",gap:14,alignItems:"flex-start",padding:"12px 0",borderBottom:i<result.tips.length-1?"1px solid #f0ede6":"none"}}>
-                  <div style={{width:24,height:24,borderRadius:6,background:"#6d28d9",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:700,color:"#fff",flexShrink:0}}>{i+1}</div>
-                  <p style={{fontFamily:"'Inter',sans-serif",fontSize:14,color:"#374151",lineHeight:1.65,fontWeight:400}}>{tip}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {currentPlan && !currentPlan.hasTips && (
-            <div className="card" style={{padding:"18px 22px",marginBottom:16,textAlign:"center",borderStyle:"dashed"}}>
-              <div style={{fontFamily:"'Inter',sans-serif",fontSize:14,color:"#9b9590",fontWeight:500,marginBottom:10}}>🔒 Expert reseller insights available on Elite plan</div>
-              <a href={STRIPE.elite} target="_blank" rel="noopener noreferrer" style={{background:"#6d28d9",color:"#fff",borderRadius:8,padding:"9px 20px",fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:14,display:"inline-block"}}>Upgrade to Elite →</a>
-            </div>
-          )}
-
-          {/* CTA */}
-          <div style={{background:"#1a1a1a",borderRadius:16,padding:"22px 26px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,color:"#fff",marginBottom:4}}>Rate another item?</div>
-              <div style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:"#9b9590",fontWeight:400}}>
-                {currentPlan && currentPlan.ratingLimit >= 99999 ? "Unlimited ratings on your plan" : currentPlan ? `${currentPlan.ratingLimit - used} ratings remaining` : used < 1 ? "1 free rating remaining" : "Upgrade to continue rating"}
-              </div>
-            </div>
-            <button onClick={()=>!plan&&used>=1?setPage("paywall"):setPage("home")} style={{background:"#fff",border:"none",borderRadius:10,padding:"11px 20px",fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:14,color:"#1a1a1a"}}>Rate Another →</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── HOME PAGE ────────────────────────────────────────────
+// ── BEACH CARD ───────────────────────────────────────────
+function StatBox({ label, value, sub, border }) {
   return (
-    <div style={{background:"#f8f6f1",minHeight:"100vh"}}>
-      <style>{GS}</style>
-      <div style={{background:"#fff",borderBottom:"1px solid #e8e3da",height:60,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 24px"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{width:30,height:30,background:"linear-gradient(135deg,#2d6a4f,#52b788)",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>♻</div>
-          <span style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700}}>Flip<span style={{color:"#2d6a4f"}}>Rank</span></span>
+    <div style={{ padding: "13px 8px", textAlign: "center", borderRight: border ? "1px solid #f0ede6" : "none" }}>
+      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 9, fontWeight: 700, color: "#9b9590", letterSpacing: "0.1em", marginBottom: 3 }}>{label}</div>
+      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 700, color: "#1a1a1a" }}>{value}</div>
+      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 10, color: "#9b9590", marginTop: 2 }}>{sub}</div>
+    </div>
+  );
+}
+
+function BeachCard({ beach, data, tides }) {
+  const [open, setOpen] = useState(false);
+  const windMph    = mpsToMph(data.windspeed);
+  const windDir    = degToDir(data.winddirection);
+  const isOffshore = data.winddirection >= 180 && data.winddirection <= 360;
+  const period     = Math.round(data.wave_period);
+  const heightFt   = metersToFeet(data.wave_height);
+  const score      = getSurfScore(data.wave_height, period, windMph, isOffshore);
+  const surf       = getSurfLabel(score);
+  const fish       = getFishLabel(data.wave_height, windMph);
+  const tempF      = Math.round(data.temperature * 9/5 + 32);
+  const periodColor = period >= 11 ? "#16a34a" : period >= 8 ? "#d97706" : "#dc2626";
+
+  return (
+    <div style={{ background: "#fff", border: `1.5px solid ${beach.border}`, borderRadius: 16, marginBottom: 14, overflow: "hidden" }}>
+      <div style={{ background: beach.bg, padding: "14px 18px", borderBottom: `1px solid ${beach.border}`, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }} onClick={() => setOpen(!open)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 24 }}>{beach.emoji}</span>
+          <div>
+            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>{beach.name}</div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: "#6b7280" }}>{beach.description.split(".")[0]}.</div>
+          </div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          {currentPlan && <span style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:"#9b9590",fontWeight:500}}>{currentPlan.name} · {used}/{currentPlan.ratingLimit >= 99999 ? "∞" : currentPlan.ratingLimit}</span>}
-          <button onClick={()=>setPage("paywall")} style={{background:"#f0fdf4",border:"1px solid #86efac",borderRadius:8,padding:"6px 14px",fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:13,color:"#15803d"}}>{currentPlan ? "Upgrade ↑" : "View Plans"}</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, fontWeight: 700, color: surf.color }}>{surf.emoji} {surf.label}</div>
+            <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: beach.color }}>{heightFt}ft</div>
+          </div>
+          <span style={{ color: "#c4bdb5", fontSize: 16 }}>{open ? "▲" : "▼"}</span>
         </div>
       </div>
 
-      <div style={{maxWidth:620,margin:"0 auto",padding:"40px 20px 60px"}}>
-        <div style={{textAlign:"center",marginBottom:32}}>
-          <h1 style={{fontFamily:"'Playfair Display',serif",fontSize:"clamp(28px,7vw,52px)",fontWeight:700,lineHeight:1.1,letterSpacing:"-0.3px",marginBottom:10}}>Is It Worth<br/><span style={{color:"#2d6a4f"}}>The Flip?</span></h1>
-          <p style={{fontFamily:"'Inter',sans-serif",color:"#6b6560",fontSize:15,lineHeight:1.7,fontWeight:400}}>
-            {currentPlan ? `${currentPlan.name} Plan — ${currentPlan.ratingLimit >= 99999 ? "Unlimited ratings" : `${currentPlan.ratingLimit - used} ratings remaining this month`}` : used < 1 ? "1 free rating available — no card needed" : "Subscribe to continue rating items"}
-          </p>
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", borderBottom: open ? "1px solid #f0ede6" : "none" }}>
+        <StatBox label="WAVES"   value={`${heightFt}ft`}  sub={`${period}s period`}                          border />
+        <StatBox label="WIND"    value={`${windMph}mph`}   sub={`${windDir} ${isOffshore ? "🟢" : "🔴"}`}    border />
+        <StatBox label="SURF"    value={surf.label}        sub={`${score}/10`}                                border />
+        <StatBox label="FISHING" value={fish.label}        sub="🎣"                                           border={false} />
+      </div>
 
-        {/* Input card */}
-        <div className="card" style={{padding:24,marginBottom:24}}>
-          {/* Photo upload */}
-          {currentPlan && currentPlan.hasPhoto ? (
-            <>
-              <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{if(e.target.files&&e.target.files[0])handleImg(e.target.files[0]);}}/>
-              {imgPreview ? (
-                <div style={{position:"relative",marginBottom:16}}>
-                  <img src={imgPreview} alt="preview" style={{width:"100%",height:180,objectFit:"cover",borderRadius:12,display:"block"}}/>
-                  <button onClick={()=>setImg(null)} style={{position:"absolute",top:10,right:10,background:"rgba(0,0,0,0.7)",border:"none",borderRadius:20,padding:"5px 12px",color:"#fff",fontSize:13,fontWeight:600}}>✕ Remove</button>
-                  <div style={{position:"absolute",bottom:10,left:10,background:"#2d6a4f",borderRadius:8,padding:"4px 12px",fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:600,color:"#fff"}}>📸 Photo ready</div>
+      {open && (
+        <div style={{ padding: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            <div style={{ background: "#f8f6f1", borderRadius: 12, padding: "14px 16px" }}>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, fontWeight: 700, color: "#9b9590", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>🌊 Waves</div>
+              {[["Height", `${heightFt} ft`], ["Period", <span style={{ color: periodColor, fontWeight: 700 }}>{period}s {period >= 11 ? "🟢" : period >= 8 ? "🟡" : "🔴"}</span>], ["Direction", degToDir(data.wave_direction)]].map(([k, v]) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #ede8e0" }}>
+                  <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: "#6b7280" }}>{k}</span>
+                  <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 600, color: "#1a1a1a" }}>{v}</span>
                 </div>
-              ) : (
-                <div className="upload-zone" onClick={()=>fileRef.current&&fileRef.current.click()} style={{marginBottom:16}}>
-                  <div style={{fontSize:28,marginBottom:8}}>📸</div>
-                  <div style={{fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:15,color:"#1a1a1a",marginBottom:4}}>Upload a Photo</div>
-                  <div style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:"#9b9590",fontWeight:400}}>Optional — helps with identification and accuracy</div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div style={{background:"#f8f6f1",border:"1px dashed #d4cfc4",borderRadius:12,padding:"16px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <div>
-                <div style={{fontFamily:"'Inter',sans-serif",fontSize:13,color:"#9b9590",fontWeight:500,marginBottom:3}}>🔒 Photo upload</div>
-                <div style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:"#c4bdb5",fontWeight:400}}>Available on Pro & Elite plans</div>
-              </div>
-              <a href={STRIPE.pro} target="_blank" rel="noopener noreferrer" style={{background:"#c2410c",color:"#fff",borderRadius:8,padding:"7px 14px",fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:12,display:"inline-block",whiteSpace:"nowrap"}}>Upgrade</a>
+              ))}
             </div>
-          )}
-
-          {/* Condition */}
-          <div style={{marginBottom:14}}>
-            <label style={{fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:600,color:"#6b6560",letterSpacing:"0.05em",textTransform:"uppercase",display:"block",marginBottom:6}}>Item Condition</label>
-            <select value={condition} onChange={e=>setCond(e.target.value)} style={{width:"100%",background:"#f8f6f1",border:"1px solid #e8e3da",borderRadius:10,padding:"11px 14px",fontSize:14,color:"#1a1a1a",fontWeight:500}}>
-              {Object.entries(CONDITIONS).map(([val,c]) => <option key={val} value={val}>{c.label} — {c.note}</option>)}
-            </select>
-          </div>
-
-          {/* Text input */}
-          <div style={{marginBottom:14}}>
-            <label style={{fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:600,color:"#6b6560",letterSpacing:"0.05em",textTransform:"uppercase",display:"block",marginBottom:6}}>Describe the Item</label>
-            <textarea rows={2} value={query} onChange={e=>setQuery(e.target.value)}
-              onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();rate();}}}
-              placeholder={imgPreview?"Add brand or details for better accuracy...":'"Nike Air Jordan 1 Chicago" or "Vintage Patagonia Synchilla Fleece"'}
-              style={{background:"#f8f6f1",border:"1px solid #e8e3da",borderRadius:10,color:"#1a1a1a",padding:"12px 14px",fontSize:15,width:"100%",lineHeight:1.6,resize:"none",transition:"border-color 0.15s"}}
-              onFocus={e=>e.target.style.borderColor="#1a1a1a"}
-              onBlur={e=>e.target.style.borderColor="#e8e3da"}
-            />
-          </div>
-
-          <button onClick={rate} disabled={loading||(!query.trim()&&!imgPreview)}
-            style={{width:"100%",background:loading||(!query.trim()&&!imgPreview)?"#d4cfc4":"#2d6a4f",color:"#fff",border:"none",borderRadius:10,padding:"14px",fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:16,transition:"background 0.2s"}}>
-            {loading ? "⏳ Analyzing..." : imgPreview ? "📸 Rate With Photo →" : "Rate This Item →"}
-          </button>
-
-          {/* Quick examples */}
-          <div style={{marginTop:14}}>
-            <div style={{fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:600,color:"#c4bdb5",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:8}}>Quick Examples</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-              {["Jordan 1 Chicago","Nike Dunk Low Panda","Vintage Carhartt Detroit","Patagonia Synchilla","Supreme Box Logo","Levi's 501 USA"].map(ex=>(
-                <button key={ex} onClick={()=>setQuery(ex)} style={{background:"#f0ede6",border:"1px solid #e8e3da",borderRadius:20,padding:"5px 12px",color:"#6b6560",fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:500,transition:"all 0.15s"}}
-                  onMouseOver={e=>{e.currentTarget.style.background="#1a1a1a";e.currentTarget.style.color="#fff";e.currentTarget.style.borderColor="#1a1a1a";}}
-                  onMouseOut={e=>{e.currentTarget.style.background="#f0ede6";e.currentTarget.style.color="#6b6560";e.currentTarget.style.borderColor="#e8e3da";}}>
-                  {ex}
-                </button>
+            <div style={{ background: "#f8f6f1", borderRadius: 12, padding: "14px 16px" }}>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, fontWeight: 700, color: "#9b9590", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>💨 Wind</div>
+              {[["Speed", `${windMph} mph`], ["Direction", windDir], ["Condition", <span style={{ color: isOffshore ? "#16a34a" : "#dc2626", fontWeight: 700 }}>{isOffshore ? "Offshore 🟢" : "Onshore 🔴"}</span>]].map(([k, v]) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #ede8e0" }}>
+                  <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: "#6b7280" }}>{k}</span>
+                  <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 600, color: "#1a1a1a" }}>{v}</span>
+                </div>
               ))}
             </div>
           </div>
-        </div>
 
-        {/* Tier guide */}
-        <div style={{marginBottom:24}}>
-          <div style={{fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:600,color:"#9b9590",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:12}}>Tier Reference</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-            {Object.entries(TIERS).map(([id,T])=>(
-              <div key={id} style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:12,padding:"12px 14px",display:"flex",alignItems:"center",gap:10}}>
-                <div style={{width:32,height:32,borderRadius:8,background:"#fff",border:`2px solid ${T.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Playfair Display',serif",fontSize:17,fontWeight:700,color:T.color,flexShrink:0}}>{id}</div>
-                <div>
-                  <div style={{fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:700,color:T.color}}>{T.label}</div>
-                  <div style={{fontFamily:"'Inter',sans-serif",fontSize:10,color:"#9b9590",fontWeight:400,lineHeight:1.3}}>{T.sub.split("—")[1]?T.sub.split("—")[1].trim():""}</div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, fontWeight: 700, color: "#9b9590", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>🌊 Today's Tides</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {tides.slice(0, 4).map((t, i) => (
+                <div key={i} style={{ background: t.type === "H" ? "#eff6ff" : "#fefce8", border: `1px solid ${t.type === "H" ? "#93c5fd" : "#fde047"}`, borderRadius: 10, padding: "8px 14px", textAlign: "center", minWidth: 70 }}>
+                  <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 10, fontWeight: 700, color: t.type === "H" ? "#1d4ed8" : "#a16207", letterSpacing: "0.05em" }}>{t.type === "H" ? "HIGH" : "LOW"}</div>
+                  <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 16, fontWeight: 700, color: "#1a1a1a" }}>{t.height}ft</div>
+                  <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: "#6b7280" }}>{t.time}</div>
                 </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            {[["🌡️ Air Temp", `${tempF}°F`], ["🎣 Fishing", fish.label], ["🏄 Best Tide", beach.bestTide]].map(([k, v]) => (
+              <div key={k} style={{ background: beach.bg, borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "#9b9590", marginBottom: 4 }}>{k}</div>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 700, color: "#1a1a1a" }}>{v}</div>
               </div>
             ))}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
 
-        {/* History */}
-        {history.length > 0 && (
+// ── PAYWALL ──────────────────────────────────────────────
+function Paywall() {
+  return (
+    <div style={{ background: "#f0f4f8", minHeight: "100vh" }}>
+      <div style={{ background: "#0c1c2c", height: 60, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, fontWeight: 700, color: "#f5f0e8" }}>🌊 Charleston Surf</span>
+      </div>
+      <div style={{ maxWidth: 540, margin: "0 auto", padding: "40px 20px 60px" }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ display: "inline-block", background: "#0ea5e920", border: "1px solid #0ea5e940", borderRadius: 20, padding: "5px 16px", marginBottom: 16, fontFamily: "'Inter',sans-serif", fontSize: 13, color: "#0ea5e9", fontWeight: 600, letterSpacing: "0.02em" }}>CHARLESTON'S SURF REPORT</div>
+          <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: "clamp(28px,6vw,46px)", fontWeight: 700, lineHeight: 1.1, letterSpacing: "-0.3px", marginBottom: 14, color: "#1a1a1a" }}>
+            Know Before<br /><span style={{ color: "#0ea5e9" }}>You Go.</span>
+          </h1>
+          <p style={{ fontFamily: "'Inter',sans-serif", color: "#6b7280", fontSize: 16, lineHeight: 1.7, maxWidth: 380, margin: "0 auto" }}>
+            Live wave, wind, tide and cam conditions for IOP, Sullivan's Island, and Folly Beach — all in one place.
+          </p>
+        </div>
+
+        {/* Plan card */}
+        <div style={{ background: "#fff", border: "2px solid #0ea5e9", borderRadius: 20, padding: "28px 28px", marginBottom: 16, position: "relative" }}>
+          <div style={{ position: "absolute", top: -13, left: "50%", transform: "translateX(-50%)", background: "#0ea5e9", color: "#fff", borderRadius: 20, padding: "4px 16px", fontFamily: "'Inter',sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: "0.05em", whiteSpace: "nowrap" }}>FULL ACCESS</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+            <div>
+              <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 24, fontWeight: 700, color: "#1a1a1a", marginBottom: 4 }}>Basic Plan</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+                <span style={{ fontFamily: "'Playfair Display',serif", fontSize: 38, fontWeight: 700, color: "#0ea5e9" }}>$2.99</span>
+                <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 14, color: "#9b9590" }}>/month</span>
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: "#9b9590", marginBottom: 4 }}>Covers all</div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 700, color: "#0ea5e9" }}>3 beaches 🏄</div>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", marginBottom: 22 }}>
+            {PLAN.features.map((f, i) => (
+              <div key={i} style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: "#374151", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>{f}</div>
+            ))}
+          </div>
+          <a href={STRIPE_BASIC} target="_blank" rel="noopener noreferrer"
+            style={{ display: "block", width: "100%", background: "#0ea5e9", color: "#fff", border: "none", borderRadius: 12, padding: "15px", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 16, textAlign: "center", boxShadow: "0 4px 16px #0ea5e944" }}>
+            Subscribe for $2.99/month →
+          </a>
+        </div>
+
+        {/* Previews */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 16 }}>
+          {[["🌊","Wave Height","1.2 ft"],["⏱️","Period","8s"],["💨","Wind","12mph NW 🟢"]].map(([emoji, label, value]) => (
+            <div key={label} style={{ background: "#fff", border: "1px solid #e8e3da", borderRadius: 12, padding: "12px 10px", textAlign: "center" }}>
+              <div style={{ fontSize: 20, marginBottom: 4 }}>{emoji}</div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 10, color: "#9b9590", fontWeight: 600, marginBottom: 2 }}>{label}</div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 700, color: "#1a1a1a", filter: "blur(4px)" }}>{value}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ textAlign: "center", fontSize: 11, color: "#9b9590", fontFamily: "'Inter',sans-serif", marginBottom: 20 }}>Subscribe to see live conditions ↑</div>
+
+
+      </div>
+    </div>
+  );
+}
+
+// ── MAIN APP ─────────────────────────────────────────────
+export default function App() {
+  // Check if returning from Stripe payment
+  const urlParams = new URLSearchParams(window.location.search);
+  const hasPaid = urlParams.get("paid") === "true";
+  const [page, setPage]           = useState(hasPaid ? "app" : "paywall");
+  const [beachData, setBeachData] = useState({});
+  const [tides, setTides]         = useState(MOCK_TIDES);
+  const [loading, setLoading]     = useState(true);
+  const [usingLive, setUsingLive] = useState(false);
+  const [updated, setUpdated]     = useState(null);
+  const [tab, setTab]             = useState("conditions");
+  const [camBeach, setCamBeach]   = useState("iop");
+
+  async function loadData() {
+    setLoading(true);
+    const results = {};
+    let gotLive = false;
+    for (const beach of BEACHES) {
+      try {
+        const [wRes, mRes] = await Promise.all([
+          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${beach.lat}&longitude=${beach.lon}&current=temperature_2m,windspeed_10m,winddirection_10m&timezone=America/New_York`),
+          fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${beach.lat}&longitude=${beach.lon}&current=wave_height,wave_direction,wave_period&timezone=America/New_York`),
+        ]);
+        const wJson = await wRes.json();
+        const mJson = await mRes.json();
+        if (wJson.current && mJson.current) {
+          results[beach.id] = {
+            wave_height:    mJson.current.wave_height    || 0.5,
+            wave_period:    mJson.current.wave_period    || 8,
+            wave_direction: mJson.current.wave_direction || 45,
+            windspeed:      wJson.current.windspeed_10m  || 5,
+            winddirection:  wJson.current.winddirection_10m || 270,
+            temperature:    wJson.current.temperature_2m || 27,
+          };
+          gotLive = true;
+        } else {
+          results[beach.id] = getMockData(beach.id);
+        }
+      } catch { results[beach.id] = getMockData(beach.id); }
+    }
+    try {
+      const today = new Date().toISOString().split("T")[0].replace(/-/g,"");
+      const tRes = await fetch(`https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?begin_date=${today}&range=24&station=8665530&product=predictions&datum=MLLW&time_zone=lst_ldt&interval=hilo&units=english&application=web_services&format=json`);
+      const tJson = await tRes.json();
+      if (tJson.predictions) {
+        const now = new Date();
+        const upcoming = tJson.predictions.filter(p => new Date(p.t) > now).map(p => ({
+          type: p.type, height: parseFloat(p.v).toFixed(1),
+          time: new Date(p.t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+        }));
+        if (upcoming.length > 0) setTides(upcoming);
+      }
+    } catch { /* keep mock */ }
+    setBeachData(results);
+    setUsingLive(gotLive);
+    setUpdated(new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }));
+    setLoading(false);
+  }
+
+  useEffect(() => { loadData(); }, []);
+
+  const overallScore = Object.keys(beachData).length > 0
+    ? Math.round(BEACHES.map(b => {
+        const d = beachData[b.id];
+        if (!d) return 0;
+        return getSurfScore(d.wave_height, d.wave_period, mpsToMph(d.windspeed), d.winddirection >= 180);
+      }).reduce((a, c) => a + c, 0) / BEACHES.length)
+    : null;
+  const overall = overallScore !== null ? getSurfLabel(overallScore) : null;
+
+  const GS = `
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#f0f4f8;}
+    button{cursor:pointer;font-family:'Inter',sans-serif;}
+    a{text-decoration:none;}
+  `;
+
+  // Show paywall if not subscribed and free use exhausted
+  if (page === "paywall") {
+    return <Paywall />;
+  }
+
+  return (
+    <div style={{ background: "#f0f4f8", minHeight: "100vh" }}>
+      <style>{GS}</style>
+
+      {/* Header */}
+      <div style={{ background: "#0c1c2c", padding: "0 20px" }}>
+        <div style={{ maxWidth: 680, margin: "0 auto", paddingTop: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, fontWeight: 700, color: "#f5f0e8" }}>🌊 Charleston Surf</div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: "#64748b", marginTop: 2 }}>
+                IOP · Sullivan's · Folly{updated && ` · Updated ${updated}`}{!usingLive && !loading && " · Sample data"}
+              </div>
+            </div>
+            <button onClick={loadData} style={{ background: "#1e3a5f", border: "1px solid #2d5a8e", borderRadius: 8, padding: "8px 14px", color: "#7dd3fc", fontSize: 13, fontWeight: 600 }}>
+              {loading ? "Loading..." : "↻ Refresh"}
+            </button>
+          </div>
+
+          {overall && !loading && (
+            <div style={{ background: "#1e3a5f", border: "1px solid #2d5a8e", borderRadius: 12, padding: "12px 18px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 10, fontWeight: 700, color: "#64748b", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>Overall Conditions</div>
+                <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: overall.color }}>{overall.emoji} {overall.label}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "#64748b", marginBottom: 4 }}>Surf Score</div>
+                <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 28, fontWeight: 700, color: "#7dd3fc" }}>{overallScore}<span style={{ fontSize: 14, color: "#64748b" }}>/10</span></div>
+              </div>
+            </div>
+          )}
+
+          {loading && (
+            <div style={{ background: "#1e3a5f", borderRadius: 12, padding: "14px 18px", marginBottom: 14, textAlign: "center" }}>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 14, color: "#7dd3fc" }}>🌊 Loading live conditions...</div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 4 }}>
+            {[["conditions","🌊 Conditions"], ["cams","📷 Cams"], ["tides","🌊 Tides"], ["guide","📖 Guide"]].map(([id, label]) => (
+              <button key={id} onClick={() => setTab(id)}
+                style={{ background: tab === id ? "#f0f4f8" : "transparent", border: "none", borderRadius: "10px 10px 0 0", padding: "10px 14px", fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 13, color: tab === id ? "#1a1a1a" : "#64748b" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 680, margin: "0 auto", padding: "20px 16px 60px" }}>
+
+        {/* CONDITIONS */}
+        {tab === "conditions" && (
           <div>
-            <div style={{fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:600,color:"#9b9590",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:12}}>Previously Rated</div>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {history.map(item=>{
-                const T = TIERS[item.tier]||TIERS["C"];
-                return (
-                  <button key={item.id} onClick={()=>{setResult(item);setPage("result");}}
-                    style={{background:"#fff",border:"1px solid #e8e3da",borderRadius:12,padding:"14px 16px",display:"flex",alignItems:"center",gap:14,textAlign:"left",width:"100%",transition:"border-color 0.15s"}}
-                    onMouseOver={e=>e.currentTarget.style.borderColor="#1a1a1a"}
-                    onMouseOut={e=>e.currentTarget.style.borderColor="#e8e3da"}>
-                    {item.imgPreview
-                      ? <img src={item.imgPreview} alt="" style={{width:40,height:40,borderRadius:8,objectFit:"cover",flexShrink:0}}/>
-                      : <div style={{width:40,height:40,borderRadius:8,background:T.bg,border:`2px solid ${T.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:T.color,flexShrink:0}}>{item.tier}</div>
-                    }
-                    <div style={{flex:1}}>
-                      <div style={{fontFamily:"'Inter',sans-serif",fontSize:14,fontWeight:600,color:"#1a1a1a",marginBottom:2}}>{item.name}</div>
-                      <div style={{fontFamily:"'Inter',sans-serif",fontSize:12,color:T.color,fontWeight:500}}>{T.label} · {CONDITIONS[item.condition]?CONDITIONS[item.condition].label:""}</div>
+            {BEACHES.map(beach => (
+              <BeachCard key={beach.id} beach={beach} data={beachData[beach.id] || getMockData(beach.id)} tides={tides} />
+            ))}
+            <div style={{ background: "#fff", border: "1px solid #e8e3da", borderRadius: 14, padding: "16px 18px" }}>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, fontWeight: 700, color: "#9b9590", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>Wave Period Guide</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {[["🔴","6s or less","Wind chop — choppy & weak"],["🟡","7–8s","Short period — mushy"],["🟡","9–10s","Decent — some shape"],["🟢","11–12s","Good groundswell"],["🔵","13s+","Excellent — rare for SC 🔥"],["🟢","Offshore wind","Grooms waves = better shape"]].map(([dot, period, desc]) => (
+                  <div key={period} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 12, marginTop: 2 }}>{dot}</span>
+                    <div>
+                      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, fontWeight: 700, color: "#1a1a1a" }}>{period}</div>
+                      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "#9b9590" }}>{desc}</div>
                     </div>
-                    <span style={{color:"#c4bdb5",fontSize:18}}>›</span>
-                  </button>
-                );
-              })}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
+
+        {/* CAMS */}
+        {tab === "cams" && (
+          <div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              {BEACHES.map(b => (
+                <button key={b.id} onClick={() => setCamBeach(b.id)}
+                  style={{ flex: 1, background: camBeach === b.id ? b.color : "#fff", border: `1.5px solid ${camBeach === b.id ? b.color : "#e8e3da"}`, borderRadius: 10, padding: "10px 8px", color: camBeach === b.id ? "#fff" : "#6b7280", fontWeight: 700, fontSize: 13, transition: "all 0.2s" }}>
+                  {b.emoji} {b.short}
+                </button>
+              ))}
+            </div>
+            <CamWidget
+              beach={BEACHES.find(b => b.id === camBeach)}
+              data={beachData[camBeach] || getMockData(camBeach)}
+            />
+            <div style={{ marginTop: 14, background: "#fff", border: "1px solid #e8e3da", borderRadius: 14, padding: "14px 18px" }}>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, fontWeight: 700, color: "#9b9590", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>All Live Cams</div>
+              {BEACHES.map(b => (
+                <a key={b.id} href={b.surflineUrl} target="_blank" rel="noopener noreferrer"
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", background: b.bg, borderRadius: 10, marginBottom: 8, border: `1px solid ${b.border}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>{b.emoji}</span>
+                    <div>
+                      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>{b.name}</div>
+                      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: "#6b7280" }}>View live video on Surfline</div>
+                    </div>
+                  </div>
+                  <div style={{ background: b.color, color: "#fff", borderRadius: 8, padding: "6px 12px", fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13 }}>Open ↗</div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TIDES */}
+        {tab === "tides" && (
+          <div>
+            <div style={{ background: "#fff", border: "1px solid #e8e3da", borderRadius: 16, padding: "20px 22px", marginBottom: 14 }}>
+              <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Charleston Tide Chart</div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: "#9b9590", marginBottom: 18 }}>NOAA Station 8665530 · Applies to all three beaches</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {tides.map((t, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: t.type === "H" ? "#eff6ff" : "#fefce8", border: `1px solid ${t.type === "H" ? "#93c5fd" : "#fde047"}`, borderRadius: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: t.type === "H" ? "#1d4ed8" : "#a16207", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: 14 }}>{t.type}</div>
+                      <div>
+                        <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 15, fontWeight: 700 }}>{t.type === "H" ? "High Tide" : "Low Tide"}</div>
+                        <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: "#6b7280" }}>{t.time}</div>
+                      </div>
+                    </div>
+                    <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 26, fontWeight: 700, color: t.type === "H" ? "#1d4ed8" : "#a16207" }}>{t.height} ft</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ background: "#fff", border: "1px solid #e8e3da", borderRadius: 14, padding: "16px 20px" }}>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, fontWeight: 700, color: "#9b9590", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 12 }}>Tide Tips</div>
+              {[["🏄","Surfing","Low to mid incoming tide is the sweet spot. Sandbars are defined and waves have more push."],["🎣","Fishing","2 hours before and after high tide is prime. Fish move with the tidal flow."],["🏖️","Swimming","Mid tide is safest. Low tide can expose hazardous sandbars and rip currents."],["📏","SC Tidal Range","Charleston has a 5–6 ft tidal range — one of the largest on the East Coast. Tide dramatically affects conditions."]].map(([emoji, label, tip]) => (
+                <div key={label} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: "1px solid #f0ede6" }}>
+                  <span style={{ fontSize: 18 }}>{emoji}</span>
+                  <div>
+                    <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, fontWeight: 700, color: "#1a1a1a", marginBottom: 2 }}>{label}</div>
+                    <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: "#9b9590", lineHeight: 1.5 }}>{tip}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* GUIDE */}
+        {tab === "guide" && (
+          <div>
+            {BEACHES.map(beach => (
+              <div key={beach.id} style={{ background: "#fff", border: `1.5px solid ${beach.border}`, borderRadius: 16, padding: "20px 22px", marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <span style={{ fontSize: 26 }}>{beach.emoji}</span>
+                  <div style={{ fontFamily: "'Playfair Display',serif", fontSize: 20, fontWeight: 700 }}>{beach.name}</div>
+                </div>
+                <p style={{ fontFamily: "'Inter',sans-serif", fontSize: 14, color: "#6b7280", lineHeight: 1.7, marginBottom: 16 }}>{beach.description}</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {[["Best Swell", beach.bestSwell], ["Best Wind", beach.bestWind], ["Best Tide", beach.bestTide], ["Hot Spot", beach.hotspot], ["Fishing", beach.fishing]].map(([k, v]) => (
+                    <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "9px 12px", background: beach.bg, borderRadius: 8 }}>
+                      <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: "#6b7280", fontWeight: 500 }}>{k}</span>
+                      <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: "#1a1a1a", fontWeight: 600, textAlign: "right", maxWidth: "55%" }}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ textAlign: "center", marginTop: 12 }}>
+          <p style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: "#c4bdb5" }}>Data from Open-Meteo & NOAA · Always verify conditions before entering water</p>
+        </div>
       </div>
     </div>
   );
